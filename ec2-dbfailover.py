@@ -2,6 +2,7 @@
 import sys,os,subprocess,shlex,socket,warnings
 import yaml,MySQLdb
 import daemon,lockfile,cmd
+from subprocess import PIPE,Popen
 
 # getting warnings about deprec libs...
 warnings.filterwarnings('ignore')
@@ -78,17 +79,28 @@ def the_results(runNote):
     sshResp,sshErr = conn_via_ssh()
     print "(%s) Direct: %s, via-ssh: %s" % (runNote, dirResp, sshResp)
 
-if __name__ == "__main__":
-#brian@dcshoes-app1:~/dev_bin/ec2-dbfailover$ sudo iptables -t nat -n -L|grep NETMAP
-#NETMAP     tcp  --  0.0.0.0/0            10.252.186.244      tcp dpt:3306 10.252.187.196/32
-
+def check_rule(runNote):
+    ruleShow = "NETMAP     tcp  --  0.0.0.0/0            %s      tcp dpt:3306 %s/32" % (db1Ip,db2Ip)
     ruleFindCmd1 = 'sudo iptables -t nat -n -L'
     rFC1args = shlex.split(ruleFindCmd1)
     ruleFindCmd2 = 'grep NETMAP'
     rFC2args = shlex.split(ruleFindCmd2)
-    rf1 = Popen([rFC1args], stdout=PIPE)
-    rf2 = Popen([rFC2args], stdin=rf1.stdout, stdout=PIPE)
-    ruleFindResp,ruleFindErr = Popen(ruleFindCmd, stdout=PIPE, stderr
+    rf1 = Popen(rFC1args, stdout=PIPE)
+    rf2 = Popen(rFC2args, stdin=rf1.stdout, stdout=PIPE)
+    ruleFindResp,ruleFindErr = rf2.communicate()
+    if ruleShow in ruleFindResp:
+        print "(%s) Response: "% runNote +ruleFindResp
+    else:
+        print "(%s) Not found." % runNote
+    
+
+if __name__ == "__main__":
+    check_rule('initial')
+    add_rule()
+    check_rule('add_rule')
+    del_rule()
+    check_rule('del_rule')
+
     #daemonContext = daemon.DaemonContext(pidfile=lockfile.FileLock('(/var/run/dbcheck.pid'))
     #with daemonContext:
     #    conn_direct()
