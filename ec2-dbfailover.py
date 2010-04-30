@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys,os,subprocess,socket,warnings
+import sys,os,subprocess,shlex,socket,warnings
 import yaml,MySQLdb
 import daemon,lockfile,cmd
 
@@ -11,6 +11,7 @@ warnings.filterwarnings('always')
 #target/assumptions:  for use on ec2 databases for failover, in absence of IPs that
 # can be reallocated (ignoring elastic IPs for now).  We have two machines in
 # master-master replication, named "db1" and "db2"
+#TODO: check to see if other nat rules exist.  Delete just the one added by this.
 
 #command used to get the host name from a mysql db
 myDBHost = "select * from INFORMATION_SCHEMA.GLOBAL_VARIABLES where VARIABLE_NAME = 'hostname';"
@@ -68,6 +69,7 @@ def add_rule():
     subprocess.call(addRuleCmd, shell=True)
 
 def del_rule():
+    # note we'd need to refine a lot of this if other nat rules exist.
     delRuleCmd = 'sudo iptables -t nat -F'
     subprocess.call(delRuleCmd, shell=True)
 
@@ -77,12 +79,16 @@ def the_results(runNote):
     print "(%s) Direct: %s, via-ssh: %s" % (runNote, dirResp, sshResp)
 
 if __name__ == "__main__":
-    the_results('initial')
-    add_rule()
-    the_results('add_rule')
-    del_rule()
-    the_results('del_rule')
+#brian@dcshoes-app1:~/dev_bin/ec2-dbfailover$ sudo iptables -t nat -n -L|grep NETMAP
+#NETMAP     tcp  --  0.0.0.0/0            10.252.186.244      tcp dpt:3306 10.252.187.196/32
 
+    ruleFindCmd1 = 'sudo iptables -t nat -n -L'
+    rFC1args = shlex.split(ruleFindCmd1)
+    ruleFindCmd2 = 'grep NETMAP'
+    rFC2args = shlex.split(ruleFindCmd2)
+    rf1 = Popen([rFC1args], stdout=PIPE)
+    rf2 = Popen([rFC2args], stdin=rf1.stdout, stdout=PIPE)
+    ruleFindResp,ruleFindErr = Popen(ruleFindCmd, stdout=PIPE, stderr
     #daemonContext = daemon.DaemonContext(pidfile=lockfile.FileLock('(/var/run/dbcheck.pid'))
     #with daemonContext:
     #    conn_direct()
